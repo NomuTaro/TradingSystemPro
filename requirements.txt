@@ -1,0 +1,44 @@
+# ==============================================================================
+# TradingSystem 拡張機能用ライブラリ要件
+# ==============================================================================
+
+# 基本分析ライブラリ
+pandas>=1.5.0
+numpy>=1.21.0
+matplotlib>=3.5.0
+mplfinance>=0.12.0
+pandas-ta>=0.3.0
+pandas-datareader>=0.10.0
+
+# 機械学習ライブラリ（オプション）
+scikit-learn>=1.1.0
+xgboost>=1.6.0
+
+# 並列処理・非同期処理
+concurrent-futures>=3.1.1
+
+# データ保存・読み込み
+openpyxl>=3.0.0
+xlsxwriter>=3.0.0
+
+# 高度な統計・数値計算
+scipy>=1.9.0
+statsmodels>=0.13.0
+
+# プログレスバー表示
+tqdm>=4.64.0
+
+# Jupyter Notebook拡張
+ipywidgets>=7.7.0
+plotly>=5.10.0
+
+# 実際のAPI接続用（本格運用時）
+# yfinance>=0.1.70
+# alpha-vantage>=2.3.1
+# ccxt>=1.90.0
+
+# 設定管理
+python-dotenv>=0.20.0
+
+# ログ管理
+loguru>=0.6.0
