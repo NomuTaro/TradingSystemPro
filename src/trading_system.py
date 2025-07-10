@@ -15,6 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import StandardScaler
 from matplotlib.ticker import FuncFormatter
+import pandas_ta as ta  # pandas-taを追加
 
 warnings.simplefilter('ignore')
 
@@ -153,81 +154,23 @@ class TradingSystem:
         except Exception as e:
             print(f"データ取得エラー: {e}")
             return None
-            
+        
         df = df.sort_index()
 
-        # テクニカル指標を手動で計算
-        # Simple Moving Averages
-        df['SMA_5'] = df['Close'].rolling(window=5).mean()
-        df['SMA_25'] = df['Close'].rolling(window=25).mean()
-        df['SMA_75'] = df['Close'].rolling(window=75).mean()
-        
-        # RSI (Relative Strength Index)
-        delta = df['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        df['RSI_14'] = 100 - (100 / (1 + rs))
-        
+        # pandas-taでテクニカル指標を計算
+        # SMA
+        df.ta.sma(length=5, append=True)
+        df.ta.sma(length=25, append=True)
+        df.ta.sma(length=75, append=True)
+        # RSI
+        df.ta.rsi(length=14, append=True)
         # MACD
-        ema12 = df['Close'].ewm(span=12).mean()
-        ema26 = df['Close'].ewm(span=26).mean()
-        df['MACD_12_26_9'] = ema12 - ema26
-        df['MACDs_12_26_9'] = df['MACD_12_26_9'].ewm(span=9).mean()
-        df['MACDh_12_26_9'] = df['MACD_12_26_9'] - df['MACDs_12_26_9']
-        
-        # Bollinger Bands
-        sma20 = df['Close'].rolling(window=25).mean()
-        std20 = df['Close'].rolling(window=25).std()
-        df['BBU_25_2.0'] = sma20 + (std20 * 2)
-        df['BBM_25_2.0'] = sma20
-        df['BBL_25_2.0'] = sma20 - (std20 * 2)
-        
-        # ATR (Average True Range)
-        high_low = df['High'] - df['Low']
-        high_close = np.abs(df['High'] - df['Close'].shift())
-        low_close = np.abs(df['Low'] - df['Close'].shift())
-        true_range = np.maximum(high_low, np.maximum(high_close, low_close))
-        df['ATR_14'] = true_range.rolling(window=14).mean()
-        
-        # ADX (Average Directional Index)
-        # +DM (Plus Directional Movement)
-        high_diff = df['High'] - df['High'].shift(1)
-        low_diff = df['Low'].shift(1) - df['Low']
-        plus_dm = np.where((high_diff > low_diff) & (high_diff > 0), high_diff, 0)
-        minus_dm = np.where((low_diff > high_diff) & (low_diff > 0), low_diff, 0)
-        
-        # True Range (ATRと同じ)
-        tr = true_range
-        
-        # Smoothed +DM and -DM (14日間)
-        smoothed_plus_dm = pd.Series(plus_dm).rolling(window=14).mean()
-        smoothed_minus_dm = pd.Series(minus_dm).rolling(window=14).mean()
-        smoothed_tr = pd.Series(tr).rolling(window=14).mean()
-        
-        # +DI and -DI (Directional Indicators)
-        plus_di = 100 * (smoothed_plus_dm / smoothed_tr)
-        minus_di = 100 * (smoothed_minus_dm / smoothed_tr)
-        
-        # DX (Directional Index)
-        dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di)
-        
-        # ADX (Average Directional Index) - DXの14日移動平均
-        df['ADX_14'] = pd.Series(dx).rolling(window=14).mean()
-        df['PLUS_DI_14'] = plus_di
-        df['MINUS_DI_14'] = minus_di
+        df.ta.macd(fast=12, slow=26, signal=9, append=True)
+        # ボリンジャーバンド
+        df.ta.bbands(length=25, std=2.0, append=True)
+        # ATR
+        df.ta.atr(length=14, append=True)
 
-        # OBV (On-Balance Volume)
-        obv = [0]
-        for i in range(1, len(df)):
-            if df['Close'].iloc[i] > df['Close'].iloc[i-1]:
-                obv.append(obv[-1] + df['Volume'].iloc[i])
-            elif df['Close'].iloc[i] < df['Close'].iloc[i-1]:
-                obv.append(obv[-1] - df['Volume'].iloc[i])
-            else:
-                obv.append(obv[-1])
-        df['OBV'] = obv
-        
         # カラム名を統一
         df['sma5'] = df['SMA_5']
         df['sma25'] = df['SMA_25']
@@ -571,88 +514,20 @@ class TradingSystem:
 
             # --- 売買判断 ---
             if not in_position:
-                # 買い判断
-                if buy_signal_score >= self.buy_threshold:
-                    invest_amount = cash * self.investment_ratio
-                    # 手数料込みの購入価格で計算
-                    total_cost_per_share = execution_price_buy * (1 + self.fee_rate)
-                    qty_to_buy = int(invest_amount / total_cost_per_share)
-                    
-                    # 実際の購入コスト
-                    actual_cost = qty_to_buy * total_cost_per_share
-                    
-                    if actual_cost <= cash and qty_to_buy > 0:
-                        position = qty_to_buy
-                        cash -= actual_cost
-                        buy_price = execution_price_buy
-                        buy_atr = df_hist.iloc[-1]['ATR'] if len(df_hist) > 0 else 0  # 購入時のATR
-                        # 初期トレーリングストップ価格を設定（購入価格 - ATR × ストップロス倍数）
-                        trailing_stop_price = buy_price - (buy_atr * self.stop_loss_atr_multiple) if buy_atr > 0 else buy_price * (1 - self.stop_loss_rate)
-                        in_position = True
-                        trade_history.append({
-                            'type': 'BUY', 
-                            'date': today, 
-                            'price': execution_price_buy, 
-                            'qty': position,
-                            'signal_score': buy_signal_score,
-                            'cost': actual_cost,
-                            'initial_stop': trailing_stop_price
-                        })
+                result = self._execute_buy_logic(
+                    cash, execution_price_buy, buy_signal_score, df_hist, today, today_data
+                )
+                if result is not None:
+                    (position, cash, buy_price, buy_atr, trailing_stop_price, in_position, trade) = result
+                    trade_history.append(trade)
             else:
-                # 売り判断（シグナル or 利食い or 損切り）
-                sell_reason = None
-                
-                # トレーリングストップの更新（価格が上昇した場合のみ）
-                if buy_atr > 0:
-                    # ATRベースのトレーリングストップ
-                    new_trailing_stop = today_data['Close'] - (buy_atr * self.stop_loss_atr_multiple)
-                    if new_trailing_stop > trailing_stop_price:
-                        trailing_stop_price = new_trailing_stop
-                else:
-                    # 固定率ベースのトレーリングストップ
-                    new_trailing_stop = today_data['Close'] * (1 - self.stop_loss_rate)
-                    if new_trailing_stop > trailing_stop_price:
-                        trailing_stop_price = new_trailing_stop
-                
-                # トレーリングストップによる売り判断
-                if today_data['Close'] <= trailing_stop_price:
-                    sell_reason = f'Trailing Stop ({trailing_stop_price:.0f})'
-                
-                # シグナルによる売り判断
-                if not sell_reason and sell_signal_score >= self.sell_threshold:
-                    sell_reason = f'Signal (score: {sell_signal_score:.1f})'
-                
-                # 利食い判定（トレーリングストップが有効な場合は利食いは無効）
-                if not sell_reason:
-                    if self.take_profit_atr_multiple > 0 and buy_atr > 0:
-                        take_profit_price = buy_price + (buy_atr * self.take_profit_atr_multiple)
-                        if today_data['Close'] >= take_profit_price:
-                            sell_reason = f'Take Profit (ATR x{self.take_profit_atr_multiple})'
-                    
-                    # ATR設定が無効な場合、固定率を使用
-                    if not sell_reason and self.take_profit_rate > 0:
-                        take_profit_price = buy_price * (1 + self.take_profit_rate)
-                        if today_data['Close'] >= take_profit_price:
-                            sell_reason = f'Take Profit ({self.take_profit_rate*100:.1f}%)'
-
-                if sell_reason:
-                    # 手数料を差し引いた売却代金
-                    sell_proceeds = position * execution_price_sell * (1 - self.fee_rate)
-                    cash += sell_proceeds
-                    trade_history.append({
-                        'type': 'SELL', 
-                        'date': today, 
-                        'price': execution_price_sell, 
-                        'qty': position, 
-                        'reason': sell_reason,
-                        'proceeds': sell_proceeds,
-                        'final_stop': trailing_stop_price
-                    })
-                    position = 0
-                    buy_price = 0.0
-                    buy_atr = 0.0
-                    trailing_stop_price = 0.0
-                    in_position = False
+                result = self._execute_sell_logic(
+                    position, cash, buy_price, buy_atr, trailing_stop_price, in_position,
+                    execution_price_sell, sell_signal_score, today, today_data, df_hist
+                )
+                if result is not None:
+                    (position, cash, buy_price, buy_atr, trailing_stop_price, in_position, trade) = result
+                    trade_history.append(trade)
 
             # 資産評価
             current_asset = cash + (position * today_data['Close'] if in_position else 0)
@@ -679,6 +554,90 @@ class TradingSystem:
         self.final_cash = cash
         
         return asset_history, trade_history, cash
+
+    def _execute_buy_logic(self, cash, execution_price_buy, buy_signal_score, df_hist, today, today_data):
+        """ポジションがない時の買い判断ロジック"""
+        if buy_signal_score >= self.buy_threshold:
+            invest_amount = cash * self.investment_ratio
+            # 手数料込みの購入価格で計算
+            total_cost_per_share = execution_price_buy * (1 + self.fee_rate)
+            qty_to_buy = int(invest_amount / total_cost_per_share)
+            
+            # 実際の購入コスト
+            actual_cost = qty_to_buy * total_cost_per_share
+            
+            if actual_cost <= cash and qty_to_buy > 0:
+                position = qty_to_buy
+                cash -= actual_cost
+                buy_price = execution_price_buy
+                buy_atr = df_hist.iloc[-1]['ATR'] if len(df_hist) > 0 else 0  # 購入時のATR
+                # 初期トレーリングストップ価格を設定（購入価格 - ATR × ストップロス倍数）
+                trailing_stop_price = buy_price - (buy_atr * self.stop_loss_atr_multiple) if buy_atr > 0 else buy_price * (1 - self.stop_loss_rate)
+                in_position = True
+                trade = {
+                    'type': 'BUY', 
+                    'date': today, 
+                    'price': execution_price_buy, 
+                    'qty': position,
+                    'signal_score': buy_signal_score,
+                    'cost': actual_cost,
+                    'initial_stop': trailing_stop_price
+                }
+                return (position, cash, buy_price, buy_atr, trailing_stop_price, in_position, trade)
+        return None
+
+    def _execute_sell_logic(self, position, cash, buy_price, buy_atr, trailing_stop_price, in_position,
+                           execution_price_sell, sell_signal_score, today, today_data, df_hist):
+        """ポジションがある時の売り判断ロジック"""
+        sell_reason = None
+        # トレーリングストップの更新（価格が上昇した場合のみ）
+        if buy_atr > 0:
+            # ATRベースのトレーリングストップ
+            new_trailing_stop = today_data['Close'] - (buy_atr * self.stop_loss_atr_multiple)
+            if new_trailing_stop > trailing_stop_price:
+                trailing_stop_price = new_trailing_stop
+        else:
+            # 固定率ベースのトレーリングストップ
+            new_trailing_stop = today_data['Close'] * (1 - self.stop_loss_rate)
+            if new_trailing_stop > trailing_stop_price:
+                trailing_stop_price = new_trailing_stop
+        # トレーリングストップによる売り判断
+        if today_data['Close'] <= trailing_stop_price:
+            sell_reason = f'Trailing Stop ({trailing_stop_price:.0f})'
+        # シグナルによる売り判断
+        if not sell_reason and sell_signal_score >= self.sell_threshold:
+            sell_reason = f'Signal (score: {sell_signal_score:.1f})'
+        # 利食い判定（トレーリングストップが有効な場合は利食いは無効）
+        if not sell_reason:
+            if self.take_profit_atr_multiple > 0 and buy_atr > 0:
+                take_profit_price = buy_price + (buy_atr * self.take_profit_atr_multiple)
+                if today_data['Close'] >= take_profit_price:
+                    sell_reason = f'Take Profit (ATR x{self.take_profit_atr_multiple})'
+            # ATR設定が無効な場合、固定率を使用
+            if not sell_reason and self.take_profit_rate > 0:
+                take_profit_price = buy_price * (1 + self.take_profit_rate)
+                if today_data['Close'] >= take_profit_price:
+                    sell_reason = f'Take Profit ({self.take_profit_rate*100:.1f}%)'
+        if sell_reason:
+            # 手数料を差し引いた売却代金
+            sell_proceeds = position * execution_price_sell * (1 - self.fee_rate)
+            cash += sell_proceeds
+            trade = {
+                'type': 'SELL', 
+                'date': today, 
+                'price': execution_price_sell, 
+                'qty': position, 
+                'reason': sell_reason,
+                'proceeds': sell_proceeds,
+                'final_stop': trailing_stop_price
+            }
+            position = 0
+            buy_price = 0.0
+            buy_atr = 0.0
+            trailing_stop_price = 0.0
+            in_position = False
+            return (position, cash, buy_price, buy_atr, trailing_stop_price, in_position, trade)
+        return None
 
     def show_results(self) -> None:
         """シミュレーション結果をチャートとテキストで表示する"""
