@@ -1,10 +1,12 @@
-# バイトコードファイル
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# 配布用パッケージ
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -17,19 +19,26 @@ lib64/
 parts/
 sdist/
 var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
 # PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
 # Installer logs
+debug.log
 pip-log.txt
 pip-delete-this-directory.txt
 
@@ -43,9 +52,30 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
-*.py,cover
 .hypothesis/
 .pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -60,68 +90,33 @@ ipython_config.py
 # pipenv
 Pipfile.lock
 
-# PEP 582
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# 環境設定
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
+# poetry
+poetry.lock
 
 # mypy
 .mypy_cache/
 .dmypy.json
-dmypy.json
 
 # Pyre type checker
 .pyre/
 
-# プロジェクト固有のファイル
-*.csv
-*.pkl
-*.json
-*.log
+# pyright
+.pyright/
 
-# データファイル
-data/
-*.h5
-*.hdf5
-
-# 設定ファイル（機密情報含む可能性）
-config_local.py
-secrets.py
-
-# IDEファイル
+# VS Code
 .vscode/
-.idea/
-*.swp
-*.swo
-*~
 
-# macOS
+# JetBrains IDEs
+.idea/
+*.iml
+
+# Mac
 .DS_Store
 
 # Windows
 Thumbs.db
 Desktop.ini
+
+# Other
+*.swp
+*~

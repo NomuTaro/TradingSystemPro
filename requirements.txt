@@ -28,6 +28,9 @@ statsmodels>=0.13.0
 # プログレスバー表示
 tqdm>=4.64.0
 
+# 最適化ライブラリ
+optuna>=3.0.0
+
 # Jupyter Notebook拡張
 ipywidgets>=7.7.0
 plotly>=5.10.0
